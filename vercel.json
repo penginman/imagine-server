@@ -5,12 +5,6 @@
   "buildCommand": "pnpm run build:vercel",
   "devCommand": "pnpm run dev",
   "installCommand": "corepack enable && pnpm install --frozen-lockfile",
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/proxy?path=:path*"
-    }
-  ],
   "headers": [
     {
       "source": "/api/(.*)",
