@@ -26,6 +26,11 @@ cd "$TEMP_DIR"
 
 # 安装依赖
 echo "📦 安装依赖..."
+# Vercel/pnpm 可能会把 pnpm-only 配置以 npm_config_* 环境变量形式传给 npm，
+# 导致 npm 打印 "Unknown env config" 警告；这里显式清理这些变量，避免噪音并兼容未来 npm 版本。
+unset npm_config_shamefully_hoist
+unset npm_config_auto_install_peers
+unset npm_config_strict_peer_dependencies
 npm install
 
 # 修改 vite.config.ts 添加 SERVICE_MODE 定义

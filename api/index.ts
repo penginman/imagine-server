@@ -1,3 +1,6 @@
+// dist/index.js is generated during the build step; Vercel type-checks Functions
+// without a .d.ts for this file, so we intentionally suppress TS7016 here.
+// @ts-ignore
 import webApp, { app as apiApp } from "../dist/index.js";
 
 async function handler(request: Request): Promise<Response> {
