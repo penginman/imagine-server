@@ -1,4 +1,4 @@
-import webApp from "../src/index";
+import webApp from "../dist/index.js";
 
 function isBodylessMethod(method: string): boolean {
   return method === "GET" || method === "HEAD";
