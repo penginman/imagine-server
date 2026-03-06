@@ -4,6 +4,17 @@ function isBodylessMethod(method: string): boolean {
   return method === "GET" || method === "HEAD";
 }
 
+function stripLeadingSlashes(input: string): string {
+  let i = 0;
+  while (i < input.length) {
+    const ch = input.charCodeAt(i);
+    // '/' or '\\'
+    if (ch !== 47 && ch !== 92) break;
+    i++;
+  }
+  return input.slice(i);
+}
+
 async function handler(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
@@ -30,7 +41,7 @@ async function handler(request: Request): Promise<Response> {
     url.searchParams.delete("path");
 
     const targetUrl = new URL(request.url);
-    targetUrl.pathname = `/api/${pathParam.replace(/^\\/+/, "")}`;
+    targetUrl.pathname = `/api/${stripLeadingSlashes(pathParam)}`;
     targetUrl.search = url.search;
 
     const method = request.method.toUpperCase();
