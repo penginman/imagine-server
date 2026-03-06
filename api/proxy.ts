@@ -5,32 +5,51 @@ function isBodylessMethod(method: string): boolean {
 }
 
 async function handler(request: Request): Promise<Response> {
-  const url = new URL(request.url);
+  try {
+    const url = new URL(request.url);
 
-  // From vercel.json rewrites: /api/:path* -> /api/proxy (path param becomes query ?path=...)
-  const pathParam = url.searchParams.get("path");
-  if (!pathParam || pathParam === "proxy") {
-    return new Response("Not Found", { status: 404 });
+    // Preferred path via vercel.json rewrites: /api/:path* -> /api/proxy?path=:path*
+    let pathParam = url.searchParams.get("path") ?? undefined;
+
+    // Fallback 1: if Vercel preserves the original URL (e.g. /api/v1/models) just pass through.
+    if (!pathParam && url.pathname.startsWith("/api/") && !url.pathname.startsWith("/api/proxy")) {
+      const env =
+        typeof process !== "undefined" ? (process.env as unknown as never) : ({} as never);
+      return webApp.fetch(request, env);
+    }
+
+    // Fallback 2: support /api/proxy/<rest>
+    if (!pathParam && url.pathname.startsWith("/api/proxy/")) {
+      pathParam = url.pathname.slice("/api/proxy/".length);
+    }
+
+    if (!pathParam || pathParam === "proxy") {
+      return new Response("Not Found", { status: 404 });
+    }
+
+    url.searchParams.delete("path");
+
+    const targetUrl = new URL(request.url);
+    targetUrl.pathname = `/api/${pathParam.replace(/^\\/+/, "")}`;
+    targetUrl.search = url.search;
+
+    const method = request.method.toUpperCase();
+    const body = isBodylessMethod(method) ? undefined : await request.arrayBuffer();
+
+    const rewrittenRequest = new Request(targetUrl, {
+      method,
+      headers: request.headers,
+      body,
+      redirect: request.redirect,
+    });
+
+    const env =
+      typeof process !== "undefined" ? (process.env as unknown as never) : ({} as never);
+    return webApp.fetch(rewrittenRequest, env);
+  } catch (error) {
+    console.error("[Vercel proxy] handler error:", error);
+    return new Response("Internal Server Error", { status: 500 });
   }
-
-  url.searchParams.delete("path");
-
-  const targetUrl = new URL(request.url);
-  targetUrl.pathname = `/api/${pathParam.replace(/^\\/+/, "")}`;
-  targetUrl.search = url.search;
-
-  const method = request.method.toUpperCase();
-
-  const init: RequestInit & { duplex?: "half" } = {
-    method,
-    headers: request.headers,
-    body: isBodylessMethod(method) ? undefined : request.body,
-    redirect: request.redirect,
-    duplex: "half",
-  };
-
-  const rewrittenRequest = new Request(targetUrl, init);
-  return webApp.fetch(rewrittenRequest, { ...process.env } as unknown as never);
 }
 
 export const GET = handler;
@@ -40,4 +59,3 @@ export const PATCH = handler;
 export const DELETE = handler;
 export const OPTIONS = handler;
 export const HEAD = handler;
-
