@@ -21,6 +21,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*", "api/vercel.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", ".wrangler"]
 }
