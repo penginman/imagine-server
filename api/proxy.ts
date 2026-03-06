@@ -1,11 +1,10 @@
-// Vercel Node.js Function entrypoint adapter for Hono (no framework preset).
-// It converts Node.js req/res into Web Fetch API Request/Response so we can
-// reuse the existing Hono app's `fetch()` handler.
+// Single Serverless Function entrypoint for Vercel Hobby plan.
+// All /api/* traffic is rewritten to this handler by vercel.json.
 
 // dist/index.js is generated during the build step; Vercel type-checks Functions
 // without a .d.ts for this file, so we intentionally suppress TS7016 here.
 // @ts-ignore
-import webApp, { app as apiApp } from "../dist/index.js";
+import webApp from "../dist/index.js";
 
 function getOrigin(req: any): string {
   const proto = (req?.headers?.["x-forwarded-proto"] ?? "https").toString();
@@ -15,6 +14,17 @@ function getOrigin(req: any): string {
     "localhost"
   ).toString();
   return `${proto}://${host}`;
+}
+
+function stripLeadingSlashes(input: string): string {
+  let i = 0;
+  while (i < input.length) {
+    const ch = input.charCodeAt(i);
+    // '/' or '\\'
+    if (ch !== 47 && ch !== 92) break;
+    i++;
+  }
+  return input.slice(i);
 }
 
 async function readBody(req: any): Promise<Uint8Array | undefined> {
@@ -28,10 +38,7 @@ async function readBody(req: any): Promise<Uint8Array | undefined> {
   return chunks.length ? Buffer.concat(chunks) : undefined;
 }
 
-async function toWebRequest(req: any): Promise<Request> {
-  const origin = getOrigin(req);
-  const url = new URL(req?.url ?? "/", origin);
-
+async function toWebRequest(req: any, url: URL): Promise<Request> {
   const headers = new Headers();
   const rawHeaders = req?.headers ?? {};
   for (const [key, value] of Object.entries(rawHeaders)) {
@@ -58,15 +65,31 @@ async function writeWebResponse(res: any, response: Response): Promise<void> {
 }
 
 export default async function handler(req: any, res: any) {
-  const request = await toWebRequest(req);
+  const origin = getOrigin(req);
+  const incomingUrl = new URL(req?.url ?? "/", origin);
+
+  const pathParam = incomingUrl.searchParams.get("path") ?? "";
+  if (!pathParam || pathParam === "proxy") {
+    res.statusCode = 404;
+    res.end("Not Found");
+    return;
+  }
+
+  incomingUrl.searchParams.delete("path");
+
+  const targetUrl = new URL(req?.url ?? "/", origin);
+  targetUrl.pathname = `/api/${stripLeadingSlashes(pathParam)}`;
+  targetUrl.search = incomingUrl.searchParams.toString()
+    ? `?${incomingUrl.searchParams.toString()}`
+    : "";
+
+  if (process.env.DEBUG_REQUESTS === "1") {
+    console.log("[Vercel proxy]", req?.method, targetUrl.pathname);
+  }
+
+  const request = await toWebRequest(req, targetUrl);
   const env = { ...process.env } as unknown as never;
-
-  const pathname = new URL(request.url).pathname;
-  const response =
-    pathname === "/api" || pathname.startsWith("/api/")
-      ? await webApp.fetch(request, env)
-      : await apiApp.fetch(request, env);
-
+  const response = await webApp.fetch(request, env);
   await writeWebResponse(res, response);
 }
 
