@@ -22,28 +22,60 @@ export const VIDEO_NEGATIVE_PROMPT =
  */
 export function extractCompleteEventData(sseStream: string): any | null {
   const lines = sseStream.split("\n");
-  let isCompleteEvent = false;
+  let currentEvent: string | null = null;
+  let lastErrorPayload: string | null = null;
 
-  for (const line of lines) {
-    console.info(line);
+  const debug =
+    typeof process !== "undefined" &&
+    typeof process.env !== "undefined" &&
+    process.env.DEBUG_SSE === "1";
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (debug && line.length > 0) console.info(line);
+
     if (line.startsWith("event:")) {
-      if (line.substring(6).trim() === "complete") {
-        isCompleteEvent = true;
-      } else if (line.substring(6).trim() === "error") {
-        throw new Error("SSE stream error event received");
-      } else {
-        isCompleteEvent = false;
-      }
-    } else if (line.startsWith("data:") && isCompleteEvent) {
-      const jsonData = line.substring(5).trim();
+      currentEvent = line.substring(6).trim();
+      continue;
+    }
+
+    if (!line.startsWith("data:")) continue;
+    const payload = line.substring(5).trim();
+
+    if (currentEvent === "complete") {
       try {
-        return JSON.parse(jsonData);
+        return JSON.parse(payload);
       } catch (e) {
-        console.error("Error parsing JSON data:", e);
+        console.error("Error parsing SSE complete JSON payload:", e);
         return null;
       }
     }
+
+    if (currentEvent === "error") {
+      lastErrorPayload = payload;
+      // Keep scanning: some upstreams may emit spurious error events.
+    }
   }
+
+  if (lastErrorPayload) {
+    let message = lastErrorPayload;
+    try {
+      const parsed: any = JSON.parse(lastErrorPayload);
+      if (typeof parsed === "string") {
+        message = parsed;
+      } else if (parsed?.message) {
+        message = String(parsed.message);
+      } else if (parsed?.error) {
+        message = String(parsed.error);
+      } else {
+        message = JSON.stringify(parsed);
+      }
+    } catch {
+      // keep raw payload
+    }
+    throw new Error(`SSE stream error: ${message}`);
+  }
+
   return null;
 }
 
