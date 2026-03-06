@@ -21,7 +21,7 @@ const QWEN_IMAGE_EDIT_BASE_API_URL =
   "https://linoyts-qwen-image-edit-2509-fast.hf.space";
 const POLLINATIONS_API_URL = "https://text.pollinations.ai/openai";
 const WAN2_VIDEO_API_URL =
-  "https://fradeck619-wan2-2-fp8da-aoti-faster.hf.space";
+  "https://zerogpu-aoti-wan2-2-fp8da-aoti-faster.hf.space";
 const UPSCALER_BASE_API_URL = "https://tuan2308-upscaler.hf.space";
 
 // Z-Image Negative Prompt
